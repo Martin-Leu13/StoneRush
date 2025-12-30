@@ -14,7 +14,7 @@ GRAVITY = 800.0  # Positive in Pygame (y increases downward)
 PIXELS_PER_METER = 32.0
 
 # Player settings
-PLAYER_SIZE = 48.0  # Adjusted size for better gameplay
+PLAYER_SIZE = 32.0  # Smaller sprites (32x32 pixels)
 PLAYER_SPEED = 200.0
 PLAYER_JUMP_VELOCITY = -400.0  # Negative in Pygame (y=0 at top, jumping goes up)
 PLAYER_RAM_SPEED = 500.0
@@ -22,7 +22,7 @@ PLAYER_RAM_DURATION = 0.3
 PLAYER_MAX_LIVES = 3
 
 # Enemy settings
-ENEMY_SIZE = 48.0  # Match player size
+ENEMY_SIZE = 32.0  # Smaller sprites (32x32 pixels)
 ENEMY_SPEED = 50.0
 ENEMY_PATROL_DISTANCE = 128.0
 

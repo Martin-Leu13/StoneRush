@@ -14,16 +14,82 @@ import config
 class Level:
     """Manages level layout, entities, and rendering"""
 
-    def __init__(self):
+    def __init__(self, level_number=1):
         self.blocks = []
         self.enemies = []
         self.player = None
         self.goal_bounds = None
         self.level_data = None
+        self.level_number = level_number
 
-        # Create and build level
-        self.level_data = self._create_level_1_data()
+        # Create and build level based on level number
+        self.level_data = self._create_level_data(level_number)
         self._build_level()
+
+    def _create_level_data(self, level_number):
+        """Create level data based on level number (1-10)"""
+        data = LevelData(config.LEVEL_WIDTH_BLOCKS, config.LEVEL_HEIGHT_BLOCKS)
+
+        # Create ground (bottom 3 rows)
+        for x in range(data.get_width()):
+            data.set_block(x, 0, BlockType.GROUND)
+            data.set_block(x, 1, BlockType.GROUND)
+            data.set_block(x, 2, BlockType.GROUND)
+
+        # Level difficulty increases with level number
+        num_platforms = 4 + level_number  # More platforms each level
+        num_enemies = 3 + level_number * 2  # More enemies each level
+        num_gaps = level_number  # More gaps in ground each level
+        num_cracked = 2 + level_number  # More cracked blocks each level
+
+        # Create gaps in the ground (progressively more)
+        gap_spacing = 100 // (num_gaps + 1)
+        for i in range(num_gaps):
+            gap_x = 15 + i * gap_spacing
+            gap_width = 3 + (level_number // 2)  # Wider gaps at higher levels
+            for x in range(gap_x, min(gap_x + gap_width, data.get_width())):
+                data.set_block(x, 0, BlockType.EMPTY)
+                data.set_block(x, 1, BlockType.EMPTY)
+                data.set_block(x, 2, BlockType.EMPTY)
+
+        # Create platforms at varying heights
+        platform_x = 10
+        for i in range(num_platforms):
+            platform_height = 5 + (i % 3) * 2  # Heights: 5, 7, 9
+            platform_width = 8 - (level_number // 3)  # Shorter platforms at higher levels
+            platform_width = max(platform_width, 4)  # Minimum width of 4
+
+            for x in range(platform_x, platform_x + platform_width):
+                if x < data.get_width():
+                    data.set_block(x, platform_height, BlockType.GROUND)
+
+            platform_x += 12 + (level_number // 2)  # Platforms further apart at higher levels
+
+        # Add cracked blocks as obstacles
+        cracked_x = 20
+        for i in range(num_cracked):
+            cracked_height = 3 + (i % 3)
+            num_vertical = 1 + (level_number // 4)  # Stack more blocks at higher levels
+
+            for y in range(cracked_height, cracked_height + num_vertical):
+                if cracked_x < data.get_width():
+                    data.set_block(cracked_x, y, BlockType.CRACKED)
+
+            cracked_x += 15 + (i * 5)
+
+        # Set spawn points
+        data.set_player_spawn(64, 96)  # 2 blocks up from ground (2 * 32)
+
+        # Spawn enemies at intervals
+        enemy_spacing = 2800 // num_enemies  # Distribute across level
+        for i in range(num_enemies):
+            enemy_x = 200 + i * enemy_spacing
+            data.add_enemy_spawn(enemy_x, 96)
+
+        # Set goal at end of level
+        data.set_goal_position(3100, 96)
+
+        return data
 
     def _create_level_1_data(self):
         """Create Level 1 data (identical to Java version)"""

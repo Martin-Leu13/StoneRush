@@ -28,14 +28,17 @@ class GameScreen(BaseScreen):
         self.particle_system = None
         self.game_over = False
         self.level_complete = False
+        self.victory = False  # True when all 10 levels completed
+        self.current_level = 1  # Track current level (1-10)
         self.font = None
         self.sprite_manager = SpriteManager()
         self.background = None
+        self.transition_timer = 0  # Timer for level transition
 
     def show(self):
         """Initialize the game screen"""
-        # Initialize level (this creates the player too)
-        self.level = Level()
+        # Initialize level with current level number (this creates the player too)
+        self.level = Level(self.current_level)
         self.player = self.level.get_player()
 
         # Initialize systems
@@ -58,12 +61,33 @@ class GameScreen(BaseScreen):
         pygame.font.init()
         self.font = pygame.font.Font(None, 36)
 
+        # Initialize and play background music
+        pygame.mixer.init()
+        music_path = r"C:\@Martin\MADDIN\StoneRush\import\ovrworld.wav"
+        pygame.mixer.music.load(music_path)
+        pygame.mixer.music.play(-1)  # -1 = infinite loop
+
         self.game_over = False
         self.level_complete = False
 
     def update(self, delta):
         """Update game logic"""
-        if self.game_over or self.level_complete:
+        if self.game_over or self.victory:
+            return
+
+        # Handle level transition
+        if self.level_complete:
+            self.transition_timer += delta
+            if self.transition_timer >= 2.0:  # Wait 2 seconds before next level
+                if self.current_level >= 10:
+                    # All levels complete - victory!
+                    self.victory = True
+                else:
+                    # Advance to next level
+                    self.current_level += 1
+                    self.level_complete = False
+                    self.transition_timer = 0
+                    self.show()  # Reinitialize with new level
             return
 
         # Handle input
@@ -99,9 +123,15 @@ class GameScreen(BaseScreen):
         if self.player.get_bounds().colliderect(self.level.get_goal_bounds()):
             self.level_complete = True
 
-        # Check if player is dead
+        # Check if player fell into abyss (below screen)
+        if self.player.get_position().y > config.WINDOW_HEIGHT + 50:
+            # Player fell off the map - instant death
+            self.player.lives = 0
+
+        # Check if player is dead - respawn instead of game over
         if self.player.get_lives() <= 0:
-            self.game_over = True
+            # Respawn: reload the current level
+            self.show()  # This resets the entire level
 
     def render(self, surface):
         """Render the game screen"""
@@ -129,9 +159,30 @@ class GameScreen(BaseScreen):
 
     def _render_ui(self, surface):
         """Render UI elements (lives, game over, etc.)"""
-        # Render lives
+        # Render lives and level number
         lives_text = self.font.render(f"Lives: {self.player.get_lives()}", True, config.COLOR_BLACK)
         surface.blit(lives_text, (10, 10))
+
+        level_text = self.font.render(f"Level: {self.current_level}/10", True, config.COLOR_BLACK)
+        surface.blit(level_text, (10, 40))
+
+        # Render dash energy bar
+        bar_x = 10
+        bar_y = 70
+        bar_width = 200
+        bar_height = 20
+        energy_percentage = self.player.get_dash_energy() / self.player.get_max_dash_energy()
+        filled_width = int(bar_width * energy_percentage)
+
+        # Draw background (dark gray)
+        pygame.draw.rect(surface, config.COLOR_DARK_GRAY, (bar_x, bar_y, bar_width, bar_height))
+
+        # Draw energy fill (orange/yellow)
+        energy_color = (255, 165, 0)  # Orange
+        pygame.draw.rect(surface, energy_color, (bar_x, bar_y, filled_width, bar_height))
+
+        # Draw border (black)
+        pygame.draw.rect(surface, config.COLOR_BLACK, (bar_x, bar_y, bar_width, bar_height), 2)
 
         # Render game over message
         if self.game_over:
@@ -140,7 +191,16 @@ class GameScreen(BaseScreen):
             surface.blit(game_over_text, text_rect)
 
         # Render level complete message
-        if self.level_complete:
-            complete_text = self.font.render("LEVEL COMPLETE!", True, config.COLOR_BLACK)
+        if self.level_complete and not self.victory:
+            if self.current_level < 10:
+                complete_text = self.font.render(f"LEVEL {self.current_level} COMPLETE!", True, config.COLOR_BLACK)
+            else:
+                complete_text = self.font.render("LEVEL 10 COMPLETE!", True, config.COLOR_BLACK)
             text_rect = complete_text.get_rect(center=(config.WINDOW_WIDTH // 2, config.WINDOW_HEIGHT // 2))
             surface.blit(complete_text, text_rect)
+
+        # Render victory screen after all 10 levels
+        if self.victory:
+            victory_text = self.font.render("VICTORY! ALL LEVELS COMPLETED!", True, config.COLOR_BLACK)
+            text_rect = victory_text.get_rect(center=(config.WINDOW_WIDTH // 2, config.WINDOW_HEIGHT // 2))
+            surface.blit(victory_text, text_rect)

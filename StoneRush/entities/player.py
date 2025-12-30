@@ -64,6 +64,13 @@ class Player(GameObject):
         self.ram_particle_timer = 0  # Timer for spawning particles while ramming
         self.debug_frame_counter = 0  # Debug: Count frames for less verbose output
         self.last_sprite_shown = None  # Debug: Track last sprite shown
+        self.ram_blocked = False  # Prevent dash from restarting immediately after collision
+
+        # Dash energy system
+        self.dash_energy = 100.0  # Max energy is 100
+        self.max_dash_energy = 100.0
+        self.dash_drain_rate = 50.0  # Drains 50 energy per second while dashing
+        self.dash_regen_rate = 33.33  # Regenerates 100 energy in 3 seconds (100/3)
 
         # Load sprites
         self.sprite_manager = SpriteManager()
@@ -79,25 +86,25 @@ class Player(GameObject):
             print(f"player_idle.png original size: {original_size}")
             self.sprite_idle = pygame.transform.scale(self.sprite_idle, target_size)
             final_size = self.sprite_idle.get_size()
-            print(f"✓ player_idle.png scaled to: {final_size}")
+            print(f"[OK] player_idle.png scaled to: {final_size}")
         else:
-            print("✗ ERROR: player_idle.png NOT loaded!")
+            print("[ERROR] player_idle.png NOT loaded!")
 
         if self.sprite_walk:
             original_size = self.sprite_walk.get_size()
             print(f"player_walk.png original size: {original_size}")
             self.sprite_walk = pygame.transform.scale(self.sprite_walk, target_size)
             final_size = self.sprite_walk.get_size()
-            print(f"✓ player_walk.png scaled to: {final_size}")
+            print(f"[OK] player_walk.png scaled to: {final_size}")
         else:
-            print("✗ ERROR: player_walk.png NOT loaded!")
+            print("[ERROR] player_walk.png NOT loaded!")
 
         # Verify both sprites are exactly the same size
         if self.sprite_idle and self.sprite_walk:
             if self.sprite_idle.get_size() == self.sprite_walk.get_size():
-                print(f"✓ Both sprites are the same size: {target_size}")
+                print(f"[OK] Both sprites are the same size: {target_size}")
             else:
-                print(f"✗ WARNING: Sprite sizes don't match!")
+                print(f"[WARNING] Sprite sizes don't match!")
                 print(f"  idle: {self.sprite_idle.get_size()}")
                 print(f"  walk: {self.sprite_walk.get_size()}")
 
@@ -114,6 +121,19 @@ class Player(GameObject):
             self.invulnerability_timer -= delta
             if self.invulnerability_timer <= 0:
                 self.is_invulnerable = False
+
+        # Drain dash energy while ramming
+        if self.state == PlayerState.RAMMING:
+            self.dash_energy -= self.dash_drain_rate * delta
+            if self.dash_energy <= 0:
+                self.dash_energy = 0
+                self._stop_ramming()  # Stop ramming when energy runs out
+
+        # Regenerate dash energy (only when not ramming)
+        elif self.dash_energy < self.max_dash_energy:
+            self.dash_energy += self.dash_regen_rate * delta
+            if self.dash_energy > self.max_dash_energy:
+                self.dash_energy = self.max_dash_energy
 
         # Spawn particles while ramming
         if self.state == PlayerState.RAMMING and self.particle_system:
@@ -151,7 +171,7 @@ class Player(GameObject):
 
         # Debug: Print when state changes
         if old_state != self.state:
-            print(f"State changed: {old_state.name} → {self.state.name}")
+            print(f"State changed: {old_state.name} -> {self.state.name}")
 
     def move_left(self):
         """Move player left"""
@@ -178,15 +198,36 @@ class Player(GameObject):
 
     def start_ram(self):
         """Start ramming attack"""
-        if self.is_grounded and self.state != PlayerState.RAMMING:
+        if self.state != PlayerState.RAMMING and self.dash_energy > 0 and not self.ram_blocked:
             self.state = PlayerState.RAMMING
             self.ram_timer = config.PLAYER_RAM_DURATION
             self.velocity.x = self.facing_direction.get_value() * config.PLAYER_RAM_SPEED
+
+    def keep_ramming(self):
+        """Keep ramming while shift is held - reset timer to keep going"""
+        if self.state == PlayerState.RAMMING:
+            # Reset timer to keep ramming
+            self.ram_timer = config.PLAYER_RAM_DURATION
+            # Maintain ram speed
+            self.velocity.x = self.facing_direction.get_value() * config.PLAYER_RAM_SPEED
+
+    def stop_ram_if_active(self):
+        """Stop ramming if currently ramming (called when shift is released)"""
+        if self.state == PlayerState.RAMMING:
+            self._stop_ramming()
+        # Clear the ram block when shift is released
+        self.ram_blocked = False
 
     def _stop_ramming(self):
         """Stop ramming"""
         self.state = PlayerState.IDLE
         self.velocity.x = 0
+
+    def stop_ram(self):
+        """Public method to stop ramming (called from collision system)"""
+        self._stop_ramming()
+        # Block ram from restarting until shift is released
+        self.ram_blocked = True
 
     def take_damage(self):
         """Take damage (lose a life)"""
@@ -211,6 +252,14 @@ class Player(GameObject):
 
     def get_facing_direction(self):
         return self.facing_direction
+
+    def get_dash_energy(self):
+        """Get current dash energy"""
+        return self.dash_energy
+
+    def get_max_dash_energy(self):
+        """Get maximum dash energy"""
+        return self.max_dash_energy
 
     def set_particle_system(self, particle_system):
         """Set the particle system for spawning particles"""

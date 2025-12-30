@@ -23,10 +23,15 @@ class InputSystem:
         else:
             self.player.stop_horizontal_movement()
 
-        # Jump (Space)
-        if keys[pygame.K_SPACE]:
+        # Jump (Space OR Up Arrow)
+        if keys[pygame.K_SPACE] or keys[pygame.K_UP]:
             self.player.jump()
 
-        # Ram (Shift)
+        # Ram (Shift) - continuous while held
         if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
             self.player.start_ram()
+            # Keep ramming while shift is held
+            self.player.keep_ramming()
+        else:
+            # Stop ramming when shift is released
+            self.player.stop_ram_if_active()

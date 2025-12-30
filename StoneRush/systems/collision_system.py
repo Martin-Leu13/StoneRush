@@ -16,6 +16,9 @@ class CollisionSystem:
         """Update all collisions"""
         player = self.level.get_player()
 
+        # Player vs Level Boundaries
+        self._handle_player_boundary_collisions(player)
+
         # Player vs Blocks
         self._handle_player_block_collisions(player)
 
@@ -25,6 +28,36 @@ class CollisionSystem:
         # Enemies vs Blocks (for grounding)
         for enemy in self.level.get_enemies():
             self._handle_enemy_block_collisions(enemy)
+
+    def _handle_player_boundary_collisions(self, player):
+        """Handle collisions between player and level boundaries (invisible walls)"""
+        import config
+
+        pos = player.get_position()
+        vel = player.get_velocity()
+        bounds = player.get_bounds()
+
+        # Calculate level boundaries
+        level_width = config.LEVEL_WIDTH_BLOCKS * config.BLOCK_SIZE
+        level_height = config.LEVEL_HEIGHT_BLOCKS * config.BLOCK_SIZE
+
+        # Left boundary (x = 0)
+        if pos.x < 0:
+            pos.x = 0
+            vel.x = 0
+
+        # Right boundary (x = level_width - player_width)
+        if pos.x + bounds.width > level_width:
+            pos.x = level_width - bounds.width
+            vel.x = 0
+
+        # Top boundary (y = 0)
+        if pos.y < 0:
+            pos.y = 0
+            vel.y = 0
+
+        # Update bounds after position changes
+        player.update_bounds()
 
     def _handle_player_block_collisions(self, player):
         """Handle collisions between player and blocks"""
@@ -60,10 +93,11 @@ class CollisionSystem:
         old_grounded = player.is_grounded
         player.set_grounded(grounded)
         if old_grounded != grounded:
-            print(f"Grounded changed: {old_grounded} → {grounded}")
+            print(f"Grounded changed: {old_grounded} -> {grounded}")
 
         # Now handle collisions
         for block in nearby_blocks:
+            player_bounds = player.get_bounds()  # Refresh bounds after each collision
             if player_bounds.colliderect(block.get_bounds()):
                 self._resolve_player_block_collision(player, block)
 
@@ -90,32 +124,38 @@ class CollisionSystem:
             pos.y = b_bounds.y - p_bounds.height
             vel.y = 0  # Stop all downward movement
             player.set_grounded(True)
-            player.update_bounds()  # Update bounds immediately
+            player.update_bounds()  # Update immediately
         elif min_overlap == overlap_bottom and vel.y < 0:
             # Collision from bottom (player hitting head while jumping)
             # In Pygame: negative y velocity = going up
             pos.y = b_bounds.y + b_bounds.height
             vel.y = 0
+            player.update_bounds()  # Update immediately
         elif min_overlap == overlap_left and vel.x > 0:
             # Collision from left
             pos.x = b_bounds.x - p_bounds.width
+            vel.x = 0
+            player.update_bounds()  # Update immediately
 
-            # If ramming, destroy cracked blocks
-            if player.is_ramming() and block.get_type() == BlockType.CRACKED:
-                block.destroy()
-            else:
-                vel.x = 0
+            # If ramming, destroy cracked blocks or stop dash
+            if player.is_ramming():
+                if block.get_type() == BlockType.CRACKED:
+                    block.destroy()
+                # Stop dash immediately when hitting any block while dashing
+                player.stop_ram()
+
         elif min_overlap == overlap_right and vel.x < 0:
             # Collision from right
             pos.x = b_bounds.x + b_bounds.width
+            vel.x = 0
+            player.update_bounds()  # Update immediately
 
-            # If ramming, destroy cracked blocks
-            if player.is_ramming() and block.get_type() == BlockType.CRACKED:
-                block.destroy()
-            else:
-                vel.x = 0
-
-        player.update_bounds()
+            # If ramming, destroy cracked blocks or stop dash
+            if player.is_ramming():
+                if block.get_type() == BlockType.CRACKED:
+                    block.destroy()
+                # Stop dash immediately when hitting any block while dashing
+                player.stop_ram()
 
     def _handle_player_enemy_collisions(self, player):
         """Handle collisions between player and enemies"""
@@ -148,6 +188,28 @@ class CollisionSystem:
         )
 
         nearby_blocks = self.level.get_blocks_in_range(search_area)
+
+        # Check for platform edge (prevent falling)
+        vel = enemy.get_velocity()
+        if abs(vel.x) > 0:  # Only check if enemy is moving
+            # Calculate position slightly ahead of enemy in movement direction
+            check_distance = enemy_bounds.width  # Check one body width ahead
+            check_x = enemy_bounds.x + check_distance if vel.x > 0 else enemy_bounds.x - check_distance
+            check_y = enemy_bounds.y + enemy_bounds.height + 5  # Check just below feet
+
+            # Check if there's ground ahead
+            has_ground_ahead = False
+            for block in nearby_blocks:
+                b_bounds = block.get_bounds()
+                # Check if there's a block below the position ahead
+                if (check_x >= b_bounds.x and check_x <= b_bounds.x + b_bounds.width and
+                    check_y >= b_bounds.y and check_y <= b_bounds.y + b_bounds.height):
+                    has_ground_ahead = True
+                    break
+
+            # If no ground ahead, turn around
+            if not has_ground_ahead:
+                vel.x = -vel.x
 
         for block in nearby_blocks:
             if enemy_bounds.colliderect(block.get_bounds()):

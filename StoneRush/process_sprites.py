@@ -52,7 +52,7 @@ if __name__ == "__main__":
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 
     # Standard size for all player sprites (square for easier scaling)
-    SPRITE_SIZE = (64, 64)
+    SPRITE_SIZE = (32, 32)
 
     print("Processing sprites...")
     print(f"Target size: {SPRITE_SIZE}")
@@ -80,5 +80,30 @@ if __name__ == "__main__":
         print(f"[OK] Both sprites are now the same size!")
     else:
         print(f"[WARNING] Sprites still have different sizes!")
+
+    # Process block sprites
+    print(f"\nProcessing block sprites...")
+    remove_blue_background(
+        os.path.join(assets_dir, "block_ground.png"),
+        os.path.join(assets_dir, "block_ground.png"),
+        target_size=SPRITE_SIZE
+    )
+
+    remove_blue_background(
+        os.path.join(assets_dir, "block_cracked.png"),
+        os.path.join(assets_dir, "block_cracked.png"),
+        target_size=SPRITE_SIZE
+    )
+
+    # Verify block sprites
+    ground_img = Image.open(os.path.join(assets_dir, "block_ground.png"))
+    cracked_img = Image.open(os.path.join(assets_dir, "block_cracked.png"))
+    print(f"\nBlock sprite verification:")
+    print(f"  block_ground.png: {ground_img.size}")
+    print(f"  block_cracked.png: {cracked_img.size}")
+    if ground_img.size == cracked_img.size == SPRITE_SIZE:
+        print(f"[OK] Both block sprites are the correct size!")
+    else:
+        print(f"[WARNING] Block sprite sizes don't match!")
 
     print("\nDone! Blue backgrounds removed and sprites resized.")

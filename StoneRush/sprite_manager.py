@@ -33,6 +33,17 @@ class SpriteManager:
             os.path.join(assets_path, "player_walk.png")
         ).convert_alpha()
 
+        # Load block sprites
+        print("[SPRITE MANAGER] Lade Block-Sprites...")
+        block_ground_path = os.path.join(assets_path, "block_ground.png")
+        block_cracked_path = os.path.join(assets_path, "block_cracked.png")
+
+        self._sprites["block_ground"] = pygame.image.load(block_ground_path).convert_alpha()
+        print(f"[OK] block_ground.png geladen: {self._sprites['block_ground'].get_size()}")
+
+        self._sprites["block_cracked"] = pygame.image.load(block_cracked_path).convert_alpha()
+        print(f"[OK] block_cracked.png geladen: {self._sprites['block_cracked'].get_size()}")
+
         # Load background
         self._sprites["background"] = pygame.image.load(
             os.path.join(assets_path, "background.png")
