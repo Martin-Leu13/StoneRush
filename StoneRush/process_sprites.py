@@ -5,11 +5,21 @@ from PIL import Image
 import os
 
 
-def remove_blue_background(input_path, output_path):
-    """Remove blue/cyan background and make it transparent"""
+def remove_blue_background(input_path, output_path, target_size=None):
+    """Remove blue/cyan background and make it transparent
+
+    Args:
+        input_path: Path to input image
+        output_path: Path to save output image
+        target_size: Optional (width, height) tuple to resize to before processing
+    """
     # Open image
     img = Image.open(input_path)
     img = img.convert("RGBA")
+
+    # Resize to target size if specified
+    if target_size:
+        img = img.resize(target_size, Image.Resampling.LANCZOS)
 
     # Get pixel data
     data = img.getdata()
@@ -41,15 +51,34 @@ def remove_blue_background(input_path, output_path):
 if __name__ == "__main__":
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 
-    # Process player sprites
+    # Standard size for all player sprites (square for easier scaling)
+    SPRITE_SIZE = (64, 64)
+
+    print("Processing sprites...")
+    print(f"Target size: {SPRITE_SIZE}")
+
+    # Process player sprites - resize to same size first!
     remove_blue_background(
         os.path.join(assets_dir, "player_idle.png"),
-        os.path.join(assets_dir, "player_idle.png")
+        os.path.join(assets_dir, "player_idle.png"),
+        target_size=SPRITE_SIZE
     )
 
     remove_blue_background(
         os.path.join(assets_dir, "player_walk.png"),
-        os.path.join(assets_dir, "player_walk.png")
+        os.path.join(assets_dir, "player_walk.png"),
+        target_size=SPRITE_SIZE
     )
 
-    print("Done! Blue backgrounds removed.")
+    # Verify both sprites are the same size
+    idle_img = Image.open(os.path.join(assets_dir, "player_idle.png"))
+    walk_img = Image.open(os.path.join(assets_dir, "player_walk.png"))
+    print(f"\nVerification:")
+    print(f"  player_idle.png: {idle_img.size}")
+    print(f"  player_walk.png: {walk_img.size}")
+    if idle_img.size == walk_img.size:
+        print(f"[OK] Both sprites are now the same size!")
+    else:
+        print(f"[WARNING] Sprites still have different sizes!")
+
+    print("\nDone! Blue backgrounds removed and sprites resized.")

@@ -24,11 +24,17 @@ class AnimationController:
         if state == PlayerState.WALKING:
             self.walk_timer += delta * self.ANIMATION_SPEED
             # Toggle between frame 0 and 1 every 1.0 units
+            old_frame = self.current_frame
             self.current_frame = int(self.walk_timer) % 2
+            # Print when frame changes
+            if old_frame != self.current_frame:
+                print(f"Animation Frame: {self.current_frame}")
         else:
             # Reset to idle frame when not walking
             self.walk_timer = 0.0
-            self.current_frame = 0
+            if self.current_frame != 0:
+                self.current_frame = 0
+                print(f"Animation Frame: {self.current_frame} (stopped)")
 
     def get_current_frame(self):
         """Get current animation frame (0 or 1)"""
@@ -54,17 +60,46 @@ class Player(GameObject):
         self.is_invulnerable = False
         self.invulnerability_timer = 0
         self.animation_controller = AnimationController()
+        self.particle_system = None  # Will be set by game screen
+        self.ram_particle_timer = 0  # Timer for spawning particles while ramming
+        self.debug_frame_counter = 0  # Debug: Count frames for less verbose output
+        self.last_sprite_shown = None  # Debug: Track last sprite shown
 
         # Load sprites
         self.sprite_manager = SpriteManager()
         self.sprite_idle = self.sprite_manager.get_sprite("player_idle")
         self.sprite_walk = self.sprite_manager.get_sprite("player_walk")
 
+        # Target size for both sprites (must be exactly the same)
+        target_size = (int(config.PLAYER_SIZE), int(config.PLAYER_SIZE))
+
         # Scale sprites to match player size
         if self.sprite_idle:
-            self.sprite_idle = pygame.transform.scale(self.sprite_idle, (int(config.PLAYER_SIZE), int(config.PLAYER_SIZE)))
+            original_size = self.sprite_idle.get_size()
+            print(f"player_idle.png original size: {original_size}")
+            self.sprite_idle = pygame.transform.scale(self.sprite_idle, target_size)
+            final_size = self.sprite_idle.get_size()
+            print(f"✓ player_idle.png scaled to: {final_size}")
+        else:
+            print("✗ ERROR: player_idle.png NOT loaded!")
+
         if self.sprite_walk:
-            self.sprite_walk = pygame.transform.scale(self.sprite_walk, (int(config.PLAYER_SIZE), int(config.PLAYER_SIZE)))
+            original_size = self.sprite_walk.get_size()
+            print(f"player_walk.png original size: {original_size}")
+            self.sprite_walk = pygame.transform.scale(self.sprite_walk, target_size)
+            final_size = self.sprite_walk.get_size()
+            print(f"✓ player_walk.png scaled to: {final_size}")
+        else:
+            print("✗ ERROR: player_walk.png NOT loaded!")
+
+        # Verify both sprites are exactly the same size
+        if self.sprite_idle and self.sprite_walk:
+            if self.sprite_idle.get_size() == self.sprite_walk.get_size():
+                print(f"✓ Both sprites are the same size: {target_size}")
+            else:
+                print(f"✗ WARNING: Sprite sizes don't match!")
+                print(f"  idle: {self.sprite_idle.get_size()}")
+                print(f"  walk: {self.sprite_walk.get_size()}")
 
     def update(self, delta):
         """Update player state and timers"""
@@ -80,6 +115,17 @@ class Player(GameObject):
             if self.invulnerability_timer <= 0:
                 self.is_invulnerable = False
 
+        # Spawn particles while ramming
+        if self.state == PlayerState.RAMMING and self.particle_system:
+            self.ram_particle_timer += delta
+            # Spawn particles every 0.05 seconds (20 times per second)
+            if self.ram_particle_timer >= 0.05:
+                self.ram_particle_timer = 0
+                # Spawn particles at player's center
+                spawn_x = self.position.x + self.width / 2
+                spawn_y = self.position.y + self.height / 2
+                self.particle_system.spawn_ram_particles(spawn_x, spawn_y, self.facing_direction.get_value())
+
         # Update state based on velocity and grounded status FIRST
         self._update_state()
 
@@ -90,6 +136,8 @@ class Player(GameObject):
 
     def _update_state(self):
         """Update player state based on current conditions"""
+        old_state = self.state
+
         if self.state == PlayerState.RAMMING:
             return  # Ramming overrides other states
 
@@ -100,6 +148,10 @@ class Player(GameObject):
             self.state = PlayerState.WALKING
         else:
             self.state = PlayerState.IDLE
+
+        # Debug: Print when state changes
+        if old_state != self.state:
+            print(f"State changed: {old_state.name} → {self.state.name}")
 
     def move_left(self):
         """Move player left"""
@@ -160,6 +212,10 @@ class Player(GameObject):
     def get_facing_direction(self):
         return self.facing_direction
 
+    def set_particle_system(self, particle_system):
+        """Set the particle system for spawning particles"""
+        self.particle_system = particle_system
+
     def render(self, surface, camera_offset):
         """Render the player with sprites"""
         # Calculate screen position with camera offset
@@ -167,15 +223,24 @@ class Player(GameObject):
         screen_y = self.position.y - camera_offset[1]
 
         # Choose sprite based on state and animation frame
+        sprite_name = ""
         if self.state == PlayerState.WALKING:
             # Alternate between idle and walk sprite when walking
             if self.animation_controller.is_walking_frame():
                 current_sprite = self.sprite_walk.copy()
+                sprite_name = "walk"
             else:
                 current_sprite = self.sprite_idle.copy()
+                sprite_name = "idle"
         else:
             # Use idle sprite for all non-walking states (idle, jumping, falling, ramming)
             current_sprite = self.sprite_idle.copy()
+            sprite_name = "idle"
+
+        # Debug: Print when sprite changes
+        if sprite_name != self.last_sprite_shown:
+            print(f"Showing: {sprite_name} sprite (state: {self.state.name})")
+            self.last_sprite_shown = sprite_name
 
         if current_sprite:
             # Flip sprite if facing left

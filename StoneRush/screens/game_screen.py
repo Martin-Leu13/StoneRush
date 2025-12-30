@@ -10,6 +10,7 @@ from systems.physics_system import PhysicsSystem
 from systems.collision_system import CollisionSystem
 from systems.input_system import InputSystem
 from sprite_manager import SpriteManager
+from particle_system import ParticleSystem
 import config
 
 
@@ -24,6 +25,7 @@ class GameScreen(BaseScreen):
         self.physics_system = None
         self.collision_system = None
         self.input_system = None
+        self.particle_system = None
         self.game_over = False
         self.level_complete = False
         self.font = None
@@ -40,6 +42,10 @@ class GameScreen(BaseScreen):
         self.physics_system = PhysicsSystem()
         self.collision_system = CollisionSystem(self.level)
         self.input_system = InputSystem(self.player)
+        self.particle_system = ParticleSystem()
+
+        # Set particle system for player
+        self.player.set_particle_system(self.particle_system)
 
         # Initialize camera
         self.camera = Camera(self.player)
@@ -81,6 +87,9 @@ class GameScreen(BaseScreen):
         # Update camera
         self.camera.update(delta)
 
+        # Update particle system
+        self.particle_system.update(delta)
+
         # Check win/lose conditions
         self._check_game_state()
 
@@ -111,6 +120,9 @@ class GameScreen(BaseScreen):
 
         # Render player
         self.player.render(surface, camera_offset)
+
+        # Render particles
+        self.particle_system.render(surface, camera_offset)
 
         # Render UI
         self._render_ui(surface)

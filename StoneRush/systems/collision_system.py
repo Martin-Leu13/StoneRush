@@ -40,8 +40,29 @@ class CollisionSystem:
 
         nearby_blocks = self.level.get_blocks_in_range(search_area)
 
-        player.set_grounded(False)
+        # Check if player is grounded with tolerance
+        # Instead of setting to False immediately, check if there's a block below
+        grounded = False
+        ground_tolerance = 3.0  # Pixels of tolerance for ground detection
 
+        # First check if player is on or very close to ground
+        for block in nearby_blocks:
+            b_bounds = block.get_bounds()
+            # Check if player is standing on top of this block (with small tolerance)
+            if (player_bounds.x + player_bounds.width > b_bounds.x and
+                player_bounds.x < b_bounds.x + b_bounds.width and
+                player_bounds.y + player_bounds.height >= b_bounds.y - ground_tolerance and
+                player_bounds.y + player_bounds.height <= b_bounds.y + ground_tolerance):
+                grounded = True
+                break
+
+        # Debug: Track grounded status changes
+        old_grounded = player.is_grounded
+        player.set_grounded(grounded)
+        if old_grounded != grounded:
+            print(f"Grounded changed: {old_grounded} → {grounded}")
+
+        # Now handle collisions
         for block in nearby_blocks:
             if player_bounds.colliderect(block.get_bounds()):
                 self._resolve_player_block_collision(player, block)
@@ -63,12 +84,13 @@ class CollisionSystem:
         pos = player.get_position()
         vel = player.get_velocity()
 
-        if min_overlap == overlap_top and vel.y > 0:
+        if min_overlap == overlap_top and vel.y >= 0:  # Changed > to >= for better ground detection
             # Collision from top (player landing on block from above)
             # In Pygame: positive y velocity = falling down
             pos.y = b_bounds.y - p_bounds.height
-            vel.y = 0
+            vel.y = 0  # Stop all downward movement
             player.set_grounded(True)
+            player.update_bounds()  # Update bounds immediately
         elif min_overlap == overlap_bottom and vel.y < 0:
             # Collision from bottom (player hitting head while jumping)
             # In Pygame: negative y velocity = going up
